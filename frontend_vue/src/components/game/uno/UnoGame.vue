@@ -1,0 +1,812 @@
+<template>
+  <div class="uno-game" v-if="isGameActive">
+    <!-- Game Header -->
+    <div class="game-header">
+      <div class="game-title">UNO 卡牌游戏</div>
+      <div class="game-controls">
+        <button @click="closeGame" class="close-btn">✕</button>
+      </div>
+    </div>
+
+    <!-- AI Card Area -->
+    <div class="ai-card-area">
+      <div class="player-info">
+        <div class="player-name">AI 玩家</div>
+        <div class="card-count">{{ aiHand.length }} 张卡牌</div>
+      </div>
+      <div class="ai-cards">
+        <div
+          v-for="(card, index) in aiHand"
+          :key="`ai-${index}`"
+          class="card card-back"
+          :style="{ transform: `translateX(${index * 20}px)` }"
+        >
+          <img src="/pictures/games/uno/card_back.png" alt="卡背" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Play Area -->
+    <div class="center-area">
+      <!-- Draw Pile -->
+      <div class="draw-pile" @click="handleDrawCard">
+        <div class="pile-label">抽牌堆 ({{ drawPile.length }})</div>
+        <div class="card-stack">
+          <img src="/pictures/games/uno/card_back.png" alt="抽牌堆" />
+        </div>
+      </div>
+
+      <!-- Discard Pile -->
+      <div class="discard-pile">
+        <div class="pile-label">弃牌堆</div>
+        <div class="card-stack" v-if="discardPile.length > 0">
+          <img
+            :src="getCardImage(discardPile[discardPile.length - 1]!)"
+            :alt="discardPile[discardPile.length - 1]!.display"
+          />
+        </div>
+      </div>
+
+      <!-- Game Status -->
+      <div class="game-status">
+        <div class="current-turn">{{ gameStatus }}</div>
+        <div
+          v-if="currentColor"
+          class="current-color"
+          :style="{ color: getColorHex(currentColor) }"
+        >
+          当前颜色: {{ getColorText(currentColor) }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Player Card Area -->
+    <div class="player-card-area">
+      <div class="player-info">
+        <div class="player-name">你</div>
+        <div class="player-count">{{ playerHand.length }} 张卡牌</div>
+      </div>
+      <div class="player-cards">
+        <div
+          v-for="(card, index) in playerHand"
+          :key="`player-${index}`"
+          class="card"
+          :class="{ playable: isCardPlayable(card), selected: selectedCardIndex === index }"
+          @click="selectCard(index)"
+          :style="{ transform: `translateX(${index * 50}px)` }"
+        >
+          <img :src="getCardImage(card)" :alt="card.display" />
+        </div>
+      </div>
+      <button v-if="selectedCardIndex !== null" @click="playSelectedCard" class="play-card-btn">
+        出牌
+      </button>
+    </div>
+
+    <!-- Color Picker Modal -->
+    <div v-if="showColorPicker" class="color-picker-modal">
+      <div class="color-picker-content">
+        <h3>选择颜色</h3>
+        <div class="color-options">
+          <div
+            v-for="color in ['red', 'blue', 'green', 'yellow']"
+            :key="color"
+            @click="selectWildColor(color)"
+            class="color-option"
+            :style="{ backgroundColor: getColorHex(color) }"
+          >
+            {{ getColorText(color) }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game Message -->
+    <transition name="fade">
+      <div v-if="gameMessage" class="game-message">
+        {{ gameMessage }}
+      </div>
+    </transition>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import { scriptHandler } from '@/api/websocket/handlers/script-handler'
+
+// Card Types
+interface Card {
+  color: 'red' | 'blue' | 'green' | 'yellow' | 'wild'
+  value: string // '0'-'9', 'skip', 'stop', 'draw_two', 'wild', 'wild_draw_four'
+  display: string
+}
+
+// Game State
+const isGameActive = ref(false)
+const playerHand = ref<Card[]>([])
+const aiHand = ref<Card[]>([])
+const drawPile = ref<Card[]>([])
+const discardPile = ref<Card[]>([])
+const currentColor = ref<string>('')
+const gameStatus = ref('点击"开始游戏"开始')
+const selectedCardIndex = ref<number | null>(null)
+const showColorPicker = ref(false)
+const gameMessage = ref('')
+const isPlayerTurn = ref(true)
+const pendingWildCard = ref<Card | null>(null)
+
+// Initialize deck
+const initializeDeck = (): Card[] => {
+  const deck: Card[] = []
+  const colors: ('red' | 'blue' | 'green' | 'yellow')[] = ['red', 'blue', 'green', 'yellow']
+
+  // Number cards (0-9)
+  colors.forEach((color) => {
+    deck.push({ color, value: '0', display: `${color}_0` })
+    for (let i = 1; i <= 9; i++) {
+      deck.push({ color, value: String(i), display: `${color}_${i}` })
+      deck.push({ color, value: String(i), display: `${color}_${i}` })
+    }
+  })
+
+  // Action cards
+  colors.forEach((color) => {
+    for (let i = 0; i < 2; i++) {
+      deck.push({ color, value: 'skip', display: `${color}_skip` })
+      deck.push({ color, value: 'stop', display: `${color}_stop` })
+      deck.push({ color, value: 'draw_two', display: `${color}_draw_two` })
+    }
+  })
+
+  // Wild cards
+  for (let i = 0; i < 4; i++) {
+    deck.push({ color: 'wild', value: 'wild', display: 'wild' })
+    deck.push({ color: 'wild', value: 'wild_draw_four', display: 'wild_draw_four' })
+  }
+
+  return shuffle(deck)
+}
+
+// Shuffle function
+const shuffle = (array: Card[]): Card[] => {
+  const newArray = [...array]
+  for (let i = newArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[newArray[i]!, newArray[j]!] = [newArray[j]!, newArray[i]!]
+  }
+  return newArray
+}
+
+// Get card image path
+const getCardImage = (card: Card): string => {
+  return `/pictures/games/uno/${card.display}.png`
+}
+
+// Get color hex
+const getColorHex = (color: string): string => {
+  const colorMap: Record<string, string> = {
+    red: '#E74C3C',
+    blue: '#3498DB',
+    green: '#2ECC71',
+    yellow: '#F1C40F',
+    wild: '#34495E',
+  }
+  return colorMap[color] || '#FFFFFF'
+}
+
+// Get color text
+const getColorText = (color: string): string => {
+  const textMap: Record<string, string> = {
+    red: '红色',
+    blue: '蓝色',
+    green: '绿色',
+    yellow: '黄色',
+    wild: '万能',
+  }
+  return textMap[color] || color
+}
+
+// Check if card is playable
+const isCardPlayable = (card: Card): boolean => {
+  if (!isPlayerTurn.value) return false
+
+  const topCard = discardPile.value[discardPile.value.length - 1]
+  if (!topCard) return true
+
+  // Wild cards can always be played
+  if (card.color === 'wild') return true
+
+  // Same color or same value
+  return card.color === currentColor.value || card.value === topCard.value
+}
+
+// Start game
+const startGame = () => {
+  const deck = initializeDeck()
+  drawPile.value = deck
+  discardPile.value = []
+  playerHand.value = []
+  aiHand.value = []
+
+  // Deal 7 cards to each player
+  for (let i = 0; i < 7; i++) {
+    const playerCard = drawPile.value.pop()
+    const aiCard = drawPile.value.pop()
+    if (playerCard) playerHand.value.push(playerCard)
+    if (aiCard) aiHand.value.push(aiCard)
+  }
+
+  // First card to discard pile
+  let firstCard = drawPile.value.pop()
+  while (firstCard && firstCard.color === 'wild') {
+    drawPile.value.unshift(firstCard)
+    firstCard = drawPile.value.pop()
+  }
+
+  if (!firstCard) return
+
+  discardPile.value.push(firstCard)
+  currentColor.value = firstCard.color
+
+  isGameActive.value = true
+  isPlayerTurn.value = true
+  gameStatus.value = '你的回合'
+
+  // Send game start message to LLM
+  const gameInfo = `UNO游戏开始！你有${aiHand.value.length}张牌。当前弃牌堆顶牌是：${firstCard.display}（${getColorText(firstCard.color)}）。`
+  scriptHandler.sendMessage(gameInfo)
+  showMessage('游戏开始！')
+}
+
+// Select card
+const selectCard = (index: number) => {
+  if (!isPlayerTurn.value) {
+    showMessage('现在不是你的回合！')
+    return
+  }
+
+  const card = playerHand.value[index]
+  if (!card || !isCardPlayable(card)) {
+    showMessage('这张牌无法出！')
+    return
+  }
+
+  selectedCardIndex.value = selectedCardIndex.value === index ? null : index
+}
+
+// Play selected card
+const playSelectedCard = () => {
+  if (selectedCardIndex.value === null) return
+
+  const card = playerHand.value[selectedCardIndex.value]
+  if (!card) return
+
+  // Handle wild cards
+  if (card.color === 'wild') {
+    pendingWildCard.value = card
+    showColorPicker.value = true
+    return
+  }
+
+  playCard(card, selectedCardIndex.value)
+}
+
+// Play card
+const playCard = (card: Card, index: number) => {
+  playerHand.value.splice(index, 1)
+  discardPile.value.push(card)
+  currentColor.value = card.color
+  selectedCardIndex.value = null
+
+  // Handle special cards
+  handleCardEffect(card, 'player')
+
+  // Check win
+  if (playerHand.value.length === 0) {
+    gameStatus.value = '你赢了！'
+    showMessage('恭喜你赢得了游戏！')
+    setTimeout(() => closeGame(), 3000)
+    return
+  }
+
+  // AI turn
+  if (card.value !== 'skip') {
+    isPlayerTurn.value = false
+    gameStatus.value = 'AI的回合'
+
+    // Send to LLM
+    const message = `玩家出了一张牌：${card.display}（${getColorText(card.color)} ${card.value}）。现在轮到你了，你的手牌数量：${aiHand.value.length}。当前颜色是${getColorText(currentColor.value)}。请选择出牌或抽牌。`
+    scriptHandler.sendMessage(message)
+
+    // AI plays after delay
+    setTimeout(() => aiPlay(), 2000)
+  }
+}
+
+// Select wild color
+const selectWildColor = (color: string) => {
+  showColorPicker.value = false
+  const cardIndex = selectedCardIndex.value
+  if (pendingWildCard.value && cardIndex !== null) {
+    const card = pendingWildCard.value
+    currentColor.value = color
+    playCard(card, cardIndex)
+    pendingWildCard.value = null
+  }
+}
+
+// Handle card effect
+const handleCardEffect = (card: Card, player: string) => {
+  switch (card.value) {
+    case 'draw_two':
+      if (player === 'player') {
+        drawCards(aiHand.value, 2)
+        showMessage('AI抽了2张牌！')
+      } else {
+        drawCards(playerHand.value, 2)
+        showMessage('你抽了2张牌！')
+      }
+      break
+    case 'wild_draw_four':
+      if (player === 'player') {
+        drawCards(aiHand.value, 4)
+        showMessage('AI抽了4张牌！')
+      } else {
+        drawCards(playerHand.value, 4)
+        showMessage('你抽了4张牌！')
+      }
+      break
+    case 'skip':
+      showMessage(`跳过${player === 'player' ? 'AI' : '玩家'}的回合！`)
+      break
+    case 'stop':
+      showMessage('反转回合顺序！')
+      break
+  }
+}
+
+// Draw cards
+const drawCards = (hand: Card[], count: number) => {
+  for (let i = 0; i < count; i++) {
+    if (drawPile.value.length === 0) {
+      reshuffleDeck()
+    }
+    if (drawPile.value.length > 0) {
+      const card = drawPile.value.pop()
+      if (card) hand.push(card)
+    }
+  }
+}
+
+// Handle draw card
+const handleDrawCard = () => {
+  if (!isPlayerTurn.value) {
+    showMessage('现在不是你的回合！')
+    return
+  }
+
+  if (drawPile.value.length === 0) {
+    reshuffleDeck()
+  }
+
+  if (drawPile.value.length > 0) {
+    const card = drawPile.value.pop()
+    if (card) {
+      playerHand.value.push(card)
+      showMessage('你抽了一张牌')
+
+      // End turn
+      isPlayerTurn.value = false
+      gameStatus.value = 'AI的回合'
+      setTimeout(() => aiPlay(), 2000)
+    }
+  }
+}
+
+// Reshuffle deck
+const reshuffleDeck = () => {
+  if (discardPile.value.length <= 1) return
+
+  const topCard = discardPile.value.pop()
+  if (!topCard) return
+
+  drawPile.value = shuffle([...discardPile.value])
+  discardPile.value = [topCard]
+  showMessage('抽牌堆已重新洗牌！')
+}
+
+// AI play logic
+const aiPlay = () => {
+  const topCard = discardPile.value[discardPile.value.length - 1]
+  if (!topCard) return
+
+  // Find playable cards
+  const playableCards = aiHand.value
+    .map((card, index) => ({ card, index }))
+    .filter(({ card }) => {
+      return (
+        card.color === 'wild' || card.color === currentColor.value || card.value === topCard.value
+      )
+    })
+
+  if (playableCards.length > 0) {
+    // Play a random playable card
+    const randomCard = playableCards[Math.floor(Math.random() * playableCards.length)]
+    if (!randomCard) return
+
+    const { card, index } = randomCard
+
+    aiHand.value.splice(index, 1)
+    discardPile.value.push(card)
+
+    // Handle wild cards
+    if (card.color === 'wild') {
+      const colors: ('red' | 'blue' | 'green' | 'yellow')[] = ['red', 'blue', 'green', 'yellow']
+      const selectedColor = colors[Math.floor(Math.random() * colors.length)]
+      if (selectedColor) {
+        currentColor.value = selectedColor
+        showMessage(`AI出了${card.display}，选择了${getColorText(selectedColor)}`)
+      }
+    } else {
+      currentColor.value = card.color
+      showMessage(`AI出了${card.display}`)
+    }
+
+    // Handle special cards
+    handleCardEffect(card, 'ai')
+
+    // Check AI win
+    if (aiHand.value.length === 0) {
+      gameStatus.value = 'AI赢了！'
+      showMessage('AI赢得了游戏！')
+      setTimeout(() => closeGame(), 3000)
+      return
+    }
+
+    // Send AI move to LLM
+    const message = `AI出了：${card.display}（${getColorText(card.color)} ${card.value}）。AI还剩${aiHand.value.length}张牌。`
+    scriptHandler.sendMessage(message)
+  } else {
+    // Draw a card
+    if (drawPile.value.length === 0) {
+      reshuffleDeck()
+    }
+    if (drawPile.value.length > 0) {
+      const card = drawPile.value.pop()
+      if (card) {
+        aiHand.value.push(card)
+        showMessage('AI抽了一张牌')
+      }
+    }
+  }
+
+  // Player's turn
+  if (aiHand.value.length > 0) {
+    isPlayerTurn.value = true
+    gameStatus.value = '你的回合'
+  }
+}
+
+// Show message
+const showMessage = (message: string) => {
+  gameMessage.value = message
+  setTimeout(() => {
+    gameMessage.value = ''
+  }, 2000)
+}
+
+// Close game
+const closeGame = () => {
+  isGameActive.value = false
+  playerHand.value = []
+  aiHand.value = []
+  drawPile.value = []
+  discardPile.value = []
+  selectedCardIndex.value = null
+}
+
+// Expose start game function
+defineExpose({
+  startGame,
+})
+</script>
+
+<style scoped>
+.uno-game {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 40px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.game-title {
+  font-size: 32px;
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+}
+
+.close-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+/* AI Card Area */
+.ai-card-area {
+  padding: 20px;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.player-info {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 15px;
+  color: white;
+  font-size: 18px;
+}
+
+.player-name {
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.card-count,
+.player-count {
+  color: #ffd700;
+}
+
+.ai-cards {
+  display: flex;
+  position: relative;
+  height: 150px;
+}
+
+/* Center Area */
+.center-area {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 60px;
+  padding: 40px;
+}
+
+.draw-pile,
+.discard-pile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.pile-label {
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.card-stack {
+  width: 120px;
+  height: 180px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  transition: transform 0.3s;
+  cursor: pointer;
+}
+
+.draw-pile .card-stack:hover {
+  transform: translateY(-10px) scale(1.05);
+}
+
+.card-stack img {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+}
+
+.game-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 20px 30px;
+  border-radius: 15px;
+  backdrop-filter: blur(10px);
+}
+
+.current-turn {
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.7);
+}
+
+.current-color {
+  font-size: 20px;
+  font-weight: bold;
+  text-shadow: 0 0 10px currentColor;
+}
+
+/* Player Card Area */
+.player-card-area {
+  padding: 20px;
+  min-height: 250px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(5px);
+}
+
+.player-cards {
+  display: flex;
+  position: relative;
+  height: 180px;
+  margin-bottom: 20px;
+}
+
+.card {
+  position: absolute;
+  width: 100px;
+  height: 150px;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.card img {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+}
+
+.card.playable {
+  cursor: pointer;
+}
+
+.card.playable:hover {
+  transform: translateY(-20px) scale(1.1);
+  box-shadow: 0 10px 30px rgba(255, 255, 255, 0.3);
+  z-index: 10;
+}
+
+.card.selected {
+  transform: translateY(-30px) scale(1.15);
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.8);
+  z-index: 11;
+}
+
+.card-back {
+  cursor: default;
+}
+
+.play-card-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 15px 40px;
+  font-size: 20px;
+  font-weight: bold;
+  border-radius: 25px;
+  cursor: pointer;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s;
+}
+
+.play-card-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Color Picker Modal */
+.color-picker-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  backdrop-filter: blur(5px);
+}
+
+.color-picker-content {
+  background: white;
+  padding: 40px;
+  border-radius: 20px;
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+}
+
+.color-picker-content h3 {
+  margin: 0 0 30px 0;
+  font-size: 28px;
+  text-align: center;
+  color: #333;
+}
+
+.color-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.color-option {
+  padding: 30px;
+  border-radius: 15px;
+  font-size: 20px;
+  font-weight: bold;
+  text-align: center;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.color-option:hover {
+  transform: scale(1.1);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+}
+
+/* Game Message */
+.game-message {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 30px 50px;
+  border-radius: 15px;
+  font-size: 24px;
+  font-weight: bold;
+  z-index: 10001;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
