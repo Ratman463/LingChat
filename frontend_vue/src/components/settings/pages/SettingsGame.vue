@@ -1,21 +1,24 @@
 <template>
-  <div class="settings-page">
-    <h2 class="settings-title">游戏设置</h2>
-    <div class="game-list">
-      <div class="game-item">
-        <img src="/pictures/games/uno/game_avatar.png" alt="UNO" class="game-icon" />
-        <div class="game-info">
-          <h3>UNO</h3>
-          <p>经典的UNO卡牌游戏</p>
-        </div>
-        <Button type="big" @click="playUNO">开始游戏</Button>
-      </div>
-    </div>
-  </div>
+    <MenuPage>
+        <MenuItem title="休闲游戏">
+            <div class="game-list">
+                <div class="game-item">
+                    <img src="/pictures/games/uno/game_avatar.png" alt="UNO" class="game-icon" />
+                    <div class="game-info">
+                        <h3>UNO</h3>
+                        <p>经典的UNO卡牌游戏</p>
+                    </div>
+                    <Button type="nav" @click="playUNO">开始游戏</Button>
+                </div>
+            </div>
+        </MenuItem>
+    </MenuPage>
 </template>
 
 <script setup lang="ts">
+import MenuPage from '@/components/ui/Menu/MenuPage.vue';
 import { Button } from '../../base'
+import MenuItem from '@/components/ui/Menu/MenuItem.vue';
 
 const playUNO = () => {
   // TODO: 实现UNO游戏逻辑
@@ -38,6 +41,7 @@ const playUNO = () => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 }
 
 .game-item {
