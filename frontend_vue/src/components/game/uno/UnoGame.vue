@@ -1,17 +1,17 @@
 <template>
   <div class="uno-game" v-if="isGameActive">
-    <!-- Game Header -->
-    <div class="game-header">
-      <div class="game-title">UNO 卡牌游戏</div>
-      <div class="game-controls">
-        <button @click="closeGame" class="close-btn">✕</button>
-      </div>
-    </div>
+
+    <button @click="closeGame" class="close-btn">离开</button>
 
     <!-- AI Card Area -->
     <div class="ai-card-area">
+      
+      <!-- Avatar Small Box -->
       <div class="player-info">
-        <div class="player-name">AI 玩家</div>
+          <div class="avatar-box" v-if="avatarImageUrl">
+            <div class="avatar-img" :style="{ backgroundImage: `url(${avatarImageUrl})` }"></div>
+        </div>
+        <div class="player-name">{{ gameStore.character }}</div>
         <div class="card-count">{{ aiHand.length }} 张卡牌</div>
       </div>
       <div class="ai-cards">
@@ -57,13 +57,16 @@
         >
           当前颜色: {{ getColorText(currentColor) }}
         </div>
+        <button v-if="selectedCardIndex !== null" @click="playSelectedCard" class="play-card-btn">
+          出牌
+        </button>
       </div>
     </div>
 
     <!-- Player Card Area -->
     <div class="player-card-area">
       <div class="player-info">
-        <div class="player-name">你</div>
+        <div class="player-name">莱姆</div>
         <div class="player-count">{{ playerHand.length }} 张卡牌</div>
       </div>
       <div class="player-cards">
@@ -78,9 +81,6 @@
           <img :src="getCardImage(card)" :alt="card.display" />
         </div>
       </div>
-      <button v-if="selectedCardIndex !== null" @click="playSelectedCard" class="play-card-btn">
-        出牌
-      </button>
     </div>
 
     <!-- Color Picker Modal -->
@@ -111,8 +111,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { scriptHandler } from '@/api/websocket/handlers/script-handler'
+import { useGameStore } from '@/stores/modules/game'
+import { EMOTION_CONFIG, EMOTION_CONFIG_EMO } from '@/controllers/emotion/config'
 
 // Card Types
 interface Card {
@@ -134,6 +136,40 @@ const showColorPicker = ref(false)
 const gameMessage = ref('')
 const isPlayerTurn = ref(true)
 const pendingWildCard = ref<Card | null>(null)
+
+// hook
+const gameStore = useGameStore()
+const avatarImageUrl = ref('')
+
+// Get avatar URL
+const updateAvatarImage = () => {
+  const character = gameStore.character
+  const clothes_name = gameStore.avatar.clothes_name ?? 'default'
+  const emotion = gameStore.avatar.emotion
+  const emotionConfig = EMOTION_CONFIG[emotion] || EMOTION_CONFIG['正常']
+
+  if (emotion === 'AI思考') {
+    avatarImageUrl.value = ''
+    return
+  }
+
+  const avatarUrl = `${emotionConfig?.avatar}/${clothes_name}`
+  if (!gameStore.script.isRunning) {
+    avatarImageUrl.value = emotionConfig?.avatar ? avatarUrl : ''
+    return
+  }
+
+  avatarImageUrl.value = `/api/v1/chat/character/get_script_avatar/${character}/${clothes_name}/${EMOTION_CONFIG_EMO[emotion]}`
+}
+
+// Watch for avatar changes
+watch(
+  () => [gameStore.avatar.emotion, gameStore.avatar.clothes_name, gameStore.character],
+  () => {
+    updateAvatarImage()
+  },
+  { immediate: true },
+)
 
 // Initialize deck
 const initializeDeck = (): Card[] => {
@@ -171,8 +207,8 @@ const initializeDeck = (): Card[] => {
 const shuffle = (array: Card[]): Card[] => {
   const newArray = [...array]
   for (let i = newArray.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[newArray[i]!, newArray[j]!] = [newArray[j]!, newArray[i]!]
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArray[i]!, newArray[j]!] = [newArray[j]!, newArray[i]!]
   }
   return newArray
 }
@@ -325,6 +361,7 @@ const playCard = (card: Card, index: number) => {
 
 // Select wild color
 const selectWildColor = (color: string) => {
+  debugger;
   showColorPicker.value = false
   const cardIndex = selectedCardIndex.value
   if (pendingWildCard.value && cardIndex !== null) {
@@ -445,11 +482,11 @@ const aiPlay = () => {
       const selectedColor = colors[Math.floor(Math.random() * colors.length)]
       if (selectedColor) {
         currentColor.value = selectedColor
-        showMessage(`AI出了${card.display}，选择了${getColorText(selectedColor)}`)
+        showMessage(`${gameStore.character}出了${card.display}，选择了${getColorText(selectedColor)}`)
       }
     } else {
       currentColor.value = card.color
-      showMessage(`AI出了${card.display}`)
+      showMessage(`${gameStore.character}${card.display}`)
     }
 
     // Handle special cards
@@ -518,11 +555,42 @@ defineExpose({
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e22ce 100%);
+  /* Liquid Glass Background */
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(30px) saturate(150%);
+  -webkit-backdrop-filter: blur(30px) saturate(150%);
   z-index: 9999;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: scroll;
+  overflow-x: hidden;
+}
+
+.uno-game::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.08) 0%, transparent 30%),
+    radial-gradient(circle at 90% 30%, rgba(255, 255, 255, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(255, 255, 255, 0.06) 0%, transparent 50%);
+  pointer-events: none;
+  animation: liquidMove 20s ease-in-out infinite;
+}
+
+@keyframes liquidMove {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.1) rotate(5deg);
+  }
 }
 
 .game-header {
@@ -530,8 +598,11 @@ defineExpose({
   justify-content: space-between;
   align-items: center;
   padding: 20px 40px;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .game-title {
@@ -542,12 +613,14 @@ defineExpose({
 }
 
 .close-btn {
+  position: absolute;
+  right: 0;
   background: rgba(255, 255, 255, 0.2);
   border: 2px solid rgba(255, 255, 255, 0.3);
   color: white;
-  width: 40px;
+  width: 100px;
   height: 40px;
-  border-radius: 50%;
+  border-radius: 4px;
   font-size: 24px;
   cursor: pointer;
   transition: all 0.3s;
@@ -558,13 +631,53 @@ defineExpose({
   transform: scale(1.1);
 }
 
+/* Avatar Box */
+.avatar-box {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin-bottom: 20px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  box-shadow:
+    0 8px 25px rgba(0, 0, 0, 0.3),
+    inset 0 2px 10px rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.avatar-box:hover {
+  transform: scale(1.1);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 12px 35px rgba(0, 0, 0, 0.4),
+    inset 0 2px 10px rgba(255, 255, 255, 0.3);
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: transform 0.3s ease;
+}
+
+.avatar-box:hover .avatar-img {
+  transform: scale(1.15);
+}
+
 /* AI Card Area */
 .ai-card-area {
   padding: 20px;
   min-height: 200px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  justify-content: center;
+  gap: 100px;
   align-items: center;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .player-info {
@@ -573,6 +686,7 @@ defineExpose({
   margin-bottom: 15px;
   color: white;
   font-size: 18px;
+  align-items: center;
 }
 
 .player-name {
@@ -640,10 +754,15 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.08);
   padding: 20px 30px;
-  border-radius: 15px;
-  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  backdrop-filter: saturate(180%);
+  -webkit-backdrop-filter: saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.2),
+    inset 0 1px 2px rgba(255, 255, 255, 0.1);
 }
 
 .current-turn {
@@ -666,8 +785,11 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(5px);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(15px) saturate(150%);
+  -webkit-backdrop-filter: blur(15px) saturate(150%);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .player-cards {
@@ -683,14 +805,16 @@ defineExpose({
   height: 150px;
   border-radius: 10px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-  transition: all 0.3s;
+  transition: all 0.3s ease;
   cursor: pointer;
+  z-index: 1;
 }
 
 .card img {
   width: 100%;
   height: 100%;
   border-radius: 10px;
+  pointer-events: none;
 }
 
 .card.playable {
@@ -698,15 +822,15 @@ defineExpose({
 }
 
 .card.playable:hover {
-  transform: translateY(-20px) scale(1.1);
-  box-shadow: 0 10px 30px rgba(255, 255, 255, 0.3);
-  z-index: 10;
+  transform: translateY(-20px);
+  box-shadow: 0 15px 40px rgba(255, 255, 255, 0.4);
+  z-index: 100 !important;
 }
 
 .card.selected {
-  transform: translateY(-30px) scale(1.15);
-  box-shadow: 0 0 30px rgba(255, 215, 0, 0.8);
-  z-index: 11;
+  transform: translateY(-20px);
+  box-shadow: 0 0 40px rgba(255, 215, 0, 0.8);
+  z-index: 101 !important;
 }
 
 .card-back {
@@ -714,7 +838,7 @@ defineExpose({
 }
 
 .play-card-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #8998d8 0%, #f5f6ff 100%);
   color: white;
   border: none;
   padding: 15px 40px;
