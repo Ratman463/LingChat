@@ -79,6 +79,14 @@
         ><p class="hidden xl:block">高级设置</p></Button
       >
       <Button
+        ref="gameBtn"
+        type="nav"
+        icon="game"
+        @click="() => switchTab('game', 'gameBtn')"
+        :class="{ active: uiStore.currentSettingsTab === 'game' }"
+        ><p class="hidden xl:block">游戏</p></Button
+      >
+      <Button
         ref="updateBtn"
         type="nav"
         icon="update"
@@ -124,6 +132,7 @@ const historyBtn = ref<ButtonRef | null>(null)
 const saveBtn = ref<ButtonRef | null>(null)
 const advanceBtn = ref<ButtonRef | null>(null)
 const scheduleBtn = ref<ButtonRef | null>(null)
+const gameBtn = ref<ButtonRef | null>(null)
 const updateBtn = ref<ButtonRef | null>(null)
 
 // 设置可重设的值（使用 ref 存储，确保响应式或跨函数访问）
@@ -140,6 +149,7 @@ const handleIndicatorMove = (currentRefName: string) => {
     saveBtn,
     advanceBtn,
     scheduleBtn,
+    gameBtn,
     updateBtn,
   }[currentRefName]
 
@@ -226,6 +236,9 @@ const initIndicator = () => {
       break
     case 'schedule':
       activeButton = scheduleBtn.value
+      break
+    case 'game':
+      activeButton = gameBtn.value
       break
     case 'update':
       activeButton = updateBtn.value

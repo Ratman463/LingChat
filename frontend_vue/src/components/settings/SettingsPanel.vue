@@ -18,6 +18,7 @@
       <SettingsSchedule v-show="uiStore.currentSettingsTab === 'schedule'" />
       <SettingsCharacter v-show="uiStore.currentSettingsTab === 'character'" />
       <SettingsBackground v-show="uiStore.currentSettingsTab === 'background'" />
+      <SettingsGame v-show="uiStore.currentSettingsTab === 'game'" />
       <SettingsUpdate v-show="uiStore.currentSettingsTab === 'update'" />
     </div>
   </div>
@@ -33,6 +34,7 @@ import {
   SettingsSchedule,
   SettingsCharacter,
   SettingsBackground,
+  SettingsGame,
   SettingsUpdate,
 } from './pages'
 import SettingsNav from './SettingsNav.vue'

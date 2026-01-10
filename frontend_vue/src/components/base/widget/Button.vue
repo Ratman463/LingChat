@@ -15,6 +15,7 @@ interface ButtonProps {
   type?: 'big' | 'menu' | 'nav' | 'select' | 'delete' | 'add' | 'save' | 'start' | 'close'
   disabled?: boolean
   icon?: IconType
+  src?: string
   icon_size?: number
 }
 const props = defineProps<ButtonProps>()

@@ -21,8 +21,8 @@
                   { dim: !isSelected(character.id) },
                 ]"
                 @click="() => showClothesPopup(character)"
-                >{{ '选择服装' }}</Button
-              >
+                >{{ width > 768 ? '选择服装' : '👚' }}
+              </Button>
               <Button
                 type="select"
                 :class="[
@@ -30,8 +30,8 @@
                   { selected: isSelected(character.id) },
                 ]"
                 @click="selectCharacter(character.id)"
-                >{{ isSelected(character.id) ? '√ 选中' : '选择' }}</Button
-              >
+                >{{ isSelected(character.id) ? '√ 选中' : '选择' }}
+              </Button>
             </template>
           </CharacterCard>
         </div>
@@ -184,6 +184,7 @@ import type { Character as ApiCharacter, Clothes } from '../../../types'
 import { useGameStore } from '../../../stores/modules/game'
 import { useUserStore } from '../../../stores/modules/user/user'
 import { useUIStore } from '../../../stores/modules/ui/ui'
+import { useWindowSize } from '@vueuse/core'
 
 interface CharacterCard {
   id: number
@@ -201,6 +202,7 @@ const selectedCharacter = ref<CharacterCard | null>(null)
 const gameStore = useGameStore()
 const userStore = useUserStore()
 const uiStore = useUIStore()
+const { width } = useWindowSize()
 
 const fetchCharacters = async (): Promise<CharacterCard[]> => {
   try {
@@ -369,6 +371,7 @@ watch(
   border-radius: 20px;
   font-size: 13px;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .dim {
