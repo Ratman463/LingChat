@@ -372,9 +372,9 @@ const playCard = (card: Card, index: number) => {
   }
 
   // AI turn
-  if (card.value !== 'skip') {
+  if (card.value !== 'skip' && card.value !== 'stop') {
     isPlayerTurn.value = false
-    gameStatus.value = 'AI的回合'
+    gameStatus.value = `${gameStore.character}的回合`
 
     // Send to LLM
     // const message = `玩家出了一张牌：${card.display}（${getColorText(card.color)} ${card.value}）。现在轮到你了，你的手牌数量：${aiHand.value.length}。当前颜色是${getColorText(currentColor.value)}。请选择出牌或抽牌。`
@@ -404,7 +404,7 @@ const handleCardEffect = (card: Card, player: string) => {
     case 'draw_two':
       if (player === 'player') {
         drawCards(aiHand.value, 2)
-        showMessage('AI抽了2张牌！')
+        showMessage(`${gameStore.character}抽了2张牌！`)
       } else {
         drawCards(playerHand.value, 2)
         showMessage('你抽了2张牌！')
@@ -413,17 +413,17 @@ const handleCardEffect = (card: Card, player: string) => {
     case 'wild_draw_four':
       if (player === 'player') {
         drawCards(aiHand.value, 4)
-        showMessage('AI抽了4张牌！')
+        showMessage(`${gameStore.character}抽了4张牌！`)
       } else {
         drawCards(playerHand.value, 4)
         showMessage('你抽了4张牌！')
       }
       break
     case 'skip':
-      showMessage(`跳过${player === 'player' ? 'AI' : '玩家'}的回合！`)
+      showMessage(`跳过${player === 'player' ? `${gameStore.character}` : '玩家'}的回合！`)
       break
     case 'stop':
-      showMessage('反转回合顺序！')
+      showMessage(`跳过${player === 'player' ? `${gameStore.character}` : '玩家'}的回合！`)
       break
   }
 }
@@ -462,7 +462,7 @@ const handleDrawCard = () => {
 
       // End turn
       isPlayerTurn.value = false
-      gameStatus.value = 'AI的回合'
+      gameStatus.value = `${gameStore.character}的回合`
       setTimeout(() => aiPlay(), 2000)
     }
   }
@@ -581,9 +581,9 @@ const executeAIPlayCard = (playableIndex: number) => {
 
   // Check AI win
   if (aiHand.value.length === 0) {
-    gameStatus.value = 'AI赢了！'
-    showMessage('AI赢得了游戏！')
-    setTimeout(() => closeGame(), 3000)
+    gameStatus.value = `${gameStore.character}赢了`
+    showMessage(`${gameStore.character}赢得了游戏！`)
+    setTimeout(() => closeGame(), 5000)
     return
   }
 
@@ -1120,8 +1120,12 @@ defineExpose({
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .loading-text {
