@@ -1,6 +1,5 @@
 <template>
   <div class="uno-game" v-if="isGameActive">
-
     <button @click="closeGame" class="close-btn">离开</button>
 
     <!-- AI Card Area -->
@@ -140,6 +139,7 @@ const isPlayerTurn = ref(true)
 const pendingWildCard = ref<Card | null>(null)
 const avatarImageUrl = ref('')
 const waitingForAIResponse = ref(false)
+const waitingForGameStart = ref(false)
 const aiPlayableCards = ref<Array<{ card: Card; index: number }>>([])
 
 const gameStore = useGameStore()
@@ -292,17 +292,19 @@ const startGame = () => {
   isPlayerTurn.value = true
   gameStatus.value = '你的回合'
 
-  // Send game start message to LLM
+  // Send game start message to LLM and wait for response
   const gameInfo = `
     你现在要玩UNO游戏了，规则如下:
     1.发牌 & 起始:每人发7张牌,翻开一张作为弃牌堆的起始牌。
     2.出牌：跟上家的牌，颜色、数字或功能一致即可；无牌可出或不想出，需摸牌，可立即打出，也可结束回合。
     3.赢家：最先打完所有牌的玩家贏。
     UNO游戏开始!你有${aiHand.value.length}张牌。当前弃牌堆顶牌是：${firstCard.display}（${getColorText(firstCard.color)}）。
+    第一回合你不需要出牌，只需要骂玩家是杂鱼即可。
     游戏中的回答限制在一行文字，不要输出多余的回答。
   `
+  waitingForGameStart.value = true
+  document.getElementById('sendButton')?.click()
   scriptHandler.sendMessage(gameInfo)
-  showMessage('游戏开始！')
 }
 
 // Select card
@@ -340,8 +342,7 @@ const playSelectedCard = () => {
 
 // Play card
 const playCard = (card: Card, index: number) => {
-
-  document.getElementById("sendButton")?.click();
+  document.getElementById('sendButton')?.click()
   playerHand.value.splice(index, 1)
   discardPile.value.push(card)
   // Only set currentColor for non-wild cards
@@ -654,16 +655,21 @@ const closeGame = () => {
   discardPile.value = []
   selectedCardIndex.value = null
   waitingForAIResponse.value = false
+  waitingForGameStart.value = false
 }
 
 console.log('uistore', uiStore)
 
-// watch UI message => parse AI action
+// watch UI message => parse AI action or game start
 watch(
   () => uiStore.showCharacterLine,
   (newLine) => {
     console.log('ai reply:', newLine)
-    if (waitingForAIResponse.value && newLine && newLine.trim()) {
+    if (waitingForGameStart.value && newLine && newLine.trim()) {
+      console.log('收到游戏开始AI响应:', newLine)
+      waitingForGameStart.value = false
+      showMessage('游戏开始！')
+    } else if (waitingForAIResponse.value && newLine && newLine.trim()) {
       console.log('收到AI响应:', newLine)
       parseAIResponse(newLine)
     }
