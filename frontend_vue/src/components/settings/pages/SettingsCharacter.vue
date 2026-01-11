@@ -204,6 +204,8 @@ const userStore = useUserStore()
 const uiStore = useUIStore()
 const { width } = useWindowSize()
 
+console.log('gameStore:', gameStore)
+
 const fetchCharacters = async (): Promise<CharacterCard[]> => {
   try {
     const list = await characterGetAll()

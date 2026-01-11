@@ -1,15 +1,13 @@
 <template>
   <div class="uno-game" v-if="isGameActive">
-
     <button @click="closeGame" class="close-btn">离开</button>
 
     <!-- AI Card Area -->
     <div class="ai-card-area">
-      
       <!-- Avatar Small Box -->
       <div class="player-info">
-          <div class="avatar-box" v-if="avatarImageUrl">
-            <div class="avatar-img" :style="{ backgroundImage: `url(${avatarImageUrl})` }"></div>
+        <div class="avatar-box" v-if="avatarImageUrl">
+          <div class="avatar-img" :style="{ backgroundImage: `url(${avatarImageUrl})` }"></div>
         </div>
         <div class="player-name">{{ gameStore.character }}</div>
         <div class="card-count">{{ aiHand.length }} 张卡牌</div>
@@ -114,6 +112,7 @@
 import { ref, watch, computed } from 'vue'
 import { scriptHandler } from '@/api/websocket/handlers/script-handler'
 import { useGameStore } from '@/stores/modules/game'
+import { useUIStore } from '@/stores/modules/ui/ui'
 import { EMOTION_CONFIG, EMOTION_CONFIG_EMO } from '@/controllers/emotion/config'
 
 // Card Types
@@ -139,7 +138,10 @@ const pendingWildCard = ref<Card | null>(null)
 
 // hook
 const gameStore = useGameStore()
+const uiStore = useUIStore()
 const avatarImageUrl = ref('')
+const waitingForAIResponse = ref(false)
+const aiPlayableCards = ref<Array<{ card: Card; index: number }>>([])
 
 // Get avatar URL
 const updateAvatarImage = () => {
@@ -169,6 +171,20 @@ watch(
     updateAvatarImage()
   },
   { immediate: true },
+)
+
+console.log("uistore", uiStore);
+
+// Watch for AI response during AI turn
+watch(
+  () => uiStore.showCharacterLine,
+  (newLine) => {
+    console.log('ai reply:', newLine)
+    if (waitingForAIResponse.value && newLine && newLine.trim()) {
+      console.log('收到AI响应:', newLine)
+      parseAIResponse(newLine)
+    }
+  },
 )
 
 // Initialize deck
@@ -207,8 +223,8 @@ const initializeDeck = (): Card[] => {
 const shuffle = (array: Card[]): Card[] => {
   const newArray = [...array]
   for (let i = newArray.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [newArray[i]!, newArray[j]!] = [newArray[j]!, newArray[i]!]
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[newArray[i]!, newArray[j]!] = [newArray[j]!, newArray[i]!]
   }
   return newArray
 }
@@ -289,7 +305,13 @@ const startGame = () => {
   gameStatus.value = '你的回合'
 
   // Send game start message to LLM
-  const gameInfo = `UNO游戏开始！你有${aiHand.value.length}张牌。当前弃牌堆顶牌是：${firstCard.display}（${getColorText(firstCard.color)}）。`
+  const gameInfo = `
+    你现在要玩UNO游戏了，规则如下:
+    1.发牌 & 起始:每人发7张牌,翻开一张作为弃牌堆的起始牌。
+    2.出牌：跟上家的牌，颜色、数字或功能一致即可；无牌可出或不想出，需摸牌，可立即打出，也可结束回合。
+    3.赢家：最先打完所有牌的玩家贏。
+    UNO游戏开始!你有${aiHand.value.length}张牌。当前弃牌堆顶牌是：${firstCard.display}（${getColorText(firstCard.color)}）。
+  `
   scriptHandler.sendMessage(gameInfo)
   showMessage('游戏开始！')
 }
@@ -331,7 +353,11 @@ const playSelectedCard = () => {
 const playCard = (card: Card, index: number) => {
   playerHand.value.splice(index, 1)
   discardPile.value.push(card)
-  currentColor.value = card.color
+  // Only set currentColor for non-wild cards
+  // For wild cards, the color is already set in selectWildColor
+  if (card.color !== 'wild') {
+    currentColor.value = card.color
+  }
   selectedCardIndex.value = null
 
   // Handle special cards
@@ -351,8 +377,8 @@ const playCard = (card: Card, index: number) => {
     gameStatus.value = 'AI的回合'
 
     // Send to LLM
-    const message = `玩家出了一张牌：${card.display}（${getColorText(card.color)} ${card.value}）。现在轮到你了，你的手牌数量：${aiHand.value.length}。当前颜色是${getColorText(currentColor.value)}。请选择出牌或抽牌。`
-    scriptHandler.sendMessage(message)
+    // const message = `玩家出了一张牌：${card.display}（${getColorText(card.color)} ${card.value}）。现在轮到你了，你的手牌数量：${aiHand.value.length}。当前颜色是${getColorText(currentColor.value)}。请选择出牌或抽牌。`
+    // scriptHandler.sendMessage(message)
 
     // AI plays after delay
     setTimeout(() => aiPlay(), 2000)
@@ -361,11 +387,11 @@ const playCard = (card: Card, index: number) => {
 
 // Select wild color
 const selectWildColor = (color: string) => {
-  debugger;
   showColorPicker.value = false
   const cardIndex = selectedCardIndex.value
   if (pendingWildCard.value && cardIndex !== null) {
     const card = pendingWildCard.value
+    // Set the chosen color BEFORE playing the card
     currentColor.value = color
     playCard(card, cardIndex)
     pendingWildCard.value = null
@@ -452,6 +478,125 @@ const reshuffleDeck = () => {
   showMessage('抽牌堆已重新洗牌！')
 }
 
+// Parse AI response to extract card choice
+const parseAIResponse = (response: string) => {
+  if (!waitingForAIResponse.value) return
+
+  const text = response.toLowerCase().trim()
+  console.log('解析AI响应:', text, '可用牌数:', aiPlayableCards.value.length)
+
+  // Check if AI wants to draw
+  if (text.includes('抽牌') || text.includes('摸牌')) {
+    waitingForAIResponse.value = false
+    executeAIDraw()
+    return
+  }
+
+  // Try to extract card index (第N张牌)
+  const indexMatch = text.match(/第?\s*(\d+)\s*张/)
+  if (indexMatch && indexMatch[1]) {
+    const cardNum = parseInt(indexMatch[1])
+    if (cardNum >= 1 && cardNum <= aiPlayableCards.value.length) {
+      waitingForAIResponse.value = false
+      executeAIPlayCard(cardNum - 1) // Convert to 0-based index
+      return
+    }
+  }
+
+  // Try to match card name (e.g., red_5, blue_skip)
+  for (let i = 0; i < aiPlayableCards.value.length; i++) {
+    const { card } = aiPlayableCards.value[i]!
+    const cardName = card.display.toLowerCase()
+    if (text.includes(cardName)) {
+      waitingForAIResponse.value = false
+      executeAIPlayCard(i)
+      return
+    }
+  }
+
+  // If no valid match, use random
+  console.log('无法解析AI响应，使用随机选择')
+  waitingForAIResponse.value = false
+  const randomIndex = Math.floor(Math.random() * aiPlayableCards.value.length)
+  executeAIPlayCard(randomIndex)
+}
+
+// Execute AI draw card action
+const executeAIDraw = () => {
+  if (drawPile.value.length === 0) {
+    reshuffleDeck()
+  }
+  if (drawPile.value.length > 0) {
+    const card = drawPile.value.pop()
+    if (card) {
+      aiHand.value.push(card)
+      showMessage(`${gameStore.character}抽了一张牌`)
+      // Too many sending will cause game slow
+      // const drawResultMessage = `${gameStore.character}抽了一张牌，现在有${aiHand.value.length}张牌。`
+      // scriptHandler.sendMessage(drawResultMessage)
+    }
+  }
+
+  // Player's turn
+  if (aiHand.value.length > 0) {
+    isPlayerTurn.value = true
+    gameStatus.value = '你的回合'
+  }
+}
+
+// Execute AI play card action
+const executeAIPlayCard = (playableIndex: number) => {
+  const selectedCard = aiPlayableCards.value[playableIndex]
+  if (!selectedCard) {
+    // Fallback to random
+    const randomIndex = Math.floor(Math.random() * aiPlayableCards.value.length)
+    const fallbackCard = aiPlayableCards.value[randomIndex]
+    if (!fallbackCard) return
+    executeAIPlayCard(randomIndex)
+    return
+  }
+
+  const { card, index } = selectedCard
+
+  aiHand.value.splice(index, 1)
+  discardPile.value.push(card)
+
+  // Handle wild cards
+  if (card.color === 'wild') {
+    const colors: ('red' | 'blue' | 'green' | 'yellow')[] = ['red', 'blue', 'green', 'yellow']
+    const selectedColor = colors[Math.floor(Math.random() * colors.length)]
+    if (selectedColor) {
+      currentColor.value = selectedColor
+      showMessage(`${gameStore.character}出了${card.display}，选择了${getColorText(selectedColor)}`)
+    }
+  } else {
+    currentColor.value = card.color
+    showMessage(`${gameStore.character}出了${card.display}`)
+  }
+
+  // Handle special cards
+  handleCardEffect(card, 'ai')
+
+  // Check AI win
+  if (aiHand.value.length === 0) {
+    gameStatus.value = 'AI赢了！'
+    showMessage('AI赢得了游戏！')
+    setTimeout(() => closeGame(), 3000)
+    return
+  }
+
+  // Send AI move result to LLM
+  // const resultMessage = `${gameStore.character}出了：${card.display}（${getColorText(card.color)} ${card.value}）。${gameStore.character}还剩${aiHand.value.length}张牌。`
+
+  // scriptHandler.sendMessage(resultMessage)
+
+  // Player's turn
+  if (aiHand.value.length > 0) {
+    isPlayerTurn.value = true
+    gameStatus.value = '你的回合'
+  }
+}
+
 // AI play logic
 const aiPlay = () => {
   const topCard = discardPile.value[discardPile.value.length - 1]
@@ -466,65 +611,43 @@ const aiPlay = () => {
       )
     })
 
+  // Store playable cards for AI response parsing
+  aiPlayableCards.value = playableCards
+
   if (playableCards.length > 0) {
-    // Play a random playable card
-    const randomCard = playableCards[Math.floor(Math.random() * playableCards.length)]
-    if (!randomCard) return
+    // Build card options info for AI
+    const cardOptionsInfo = playableCards
+      .map(({ card }, idx) => {
+        return `${idx + 1}. ${card.display} (${getColorText(card.color)} ${card.value})`
+      })
+      .join(', ')
 
-    const { card, index } = randomCard
+    // Send card options to AI and wait for response
+    const optionsMessage = `你可以出以下${playableCards.length}张牌：${cardOptionsInfo}。当前颜色是${getColorText(currentColor.value)}。请告诉我你要出哪张牌（例如："我出第1张牌"或"我出red_5"），不要返回多余信息。`
 
-    aiHand.value.splice(index, 1)
-    discardPile.value.push(card)
+    waitingForAIResponse.value = true
+    scriptHandler.sendMessage(optionsMessage)
 
-    // Handle wild cards
-    if (card.color === 'wild') {
-      const colors: ('red' | 'blue' | 'green' | 'yellow')[] = ['red', 'blue', 'green', 'yellow']
-      const selectedColor = colors[Math.floor(Math.random() * colors.length)]
-      if (selectedColor) {
-        currentColor.value = selectedColor
-        showMessage(`${gameStore.character}出了${card.display}，选择了${getColorText(selectedColor)}`)
+    // Set timeout fallback in case AI doesn't respond
+    setTimeout(() => {
+      if (waitingForAIResponse.value) {
+        console.log('AI响应超时，使用随机选择')
+        waitingForAIResponse.value = false
+        const randomIndex = Math.floor(Math.random() * aiPlayableCards.value.length)
+        executeAIPlayCard(randomIndex)
       }
-    } else {
-      currentColor.value = card.color
-      showMessage(`${gameStore.character}${card.display}`)
-    }
-
-    // Handle special cards
-    handleCardEffect(card, 'ai')
-
-    // Check AI win
-    if (aiHand.value.length === 0) {
-      gameStatus.value = 'AI赢了！'
-      showMessage('AI赢得了游戏！')
-      setTimeout(() => closeGame(), 3000)
-      return
-    }
-
-    // Send AI move to LLM
-    const message = `AI出了：${card.display}（${getColorText(card.color)} ${card.value}）。AI还剩${aiHand.value.length}张牌。`
-    scriptHandler.sendMessage(message)
+    }, 60000) // 60 second timeout
   } else {
-    // Draw a card
-    if (drawPile.value.length === 0) {
-      reshuffleDeck()
-    }
-    if (drawPile.value.length > 0) {
-      const card = drawPile.value.pop()
-      if (card) {
-        aiHand.value.push(card)
-        showMessage('AI抽了一张牌')
-      }
-    }
-  }
+    // No playable cards - must draw
+    const drawMessage = `你没有可以出的牌，当前颜色是${getColorText(currentColor.value)}。你需要抽一张牌。`
+    scriptHandler.sendMessage(drawMessage)
 
-  // Player's turn
-  if (aiHand.value.length > 0) {
-    isPlayerTurn.value = true
-    gameStatus.value = '你的回合'
+    setTimeout(() => {
+      executeAIDraw()
+    }, 1500)
   }
 }
 
-// Show message
 const showMessage = (message: string) => {
   gameMessage.value = message
   setTimeout(() => {
@@ -532,7 +655,6 @@ const showMessage = (message: string) => {
   }, 2000)
 }
 
-// Close game
 const closeGame = () => {
   isGameActive.value = false
   playerHand.value = []
@@ -542,7 +664,6 @@ const closeGame = () => {
   selectedCardIndex.value = null
 }
 
-// Expose start game function
 defineExpose({
   startGame,
 })
