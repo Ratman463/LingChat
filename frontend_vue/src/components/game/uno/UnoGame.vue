@@ -592,10 +592,17 @@ const executeAIPlayCard = (playableIndex: number) => {
 
   // scriptHandler.sendMessage(resultMessage)
 
-  // Player's turn
-  if (aiHand.value.length > 0) {
-    isPlayerTurn.value = true
-    gameStatus.value = '你的回合'
+  // Check if AI should continue playing (skip/stop cards)
+  if (card.value === 'skip' || card.value === 'stop') {
+    // AI continues to play
+    gameStatus.value = `${gameStore.character}的回合`
+    setTimeout(() => aiPlay(), 1500)
+  } else {
+    // Player's turn
+    if (aiHand.value.length > 0) {
+      isPlayerTurn.value = true
+      gameStatus.value = '你的回合'
+    }
   }
 }
 
