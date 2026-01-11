@@ -340,6 +340,8 @@ const playSelectedCard = () => {
 
 // Play card
 const playCard = (card: Card, index: number) => {
+
+  document.getElementById("sendButton")?.click();
   playerHand.value.splice(index, 1)
   discardPile.value.push(card)
   // Only set currentColor for non-wild cards
