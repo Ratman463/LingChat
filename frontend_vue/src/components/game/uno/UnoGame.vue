@@ -656,7 +656,7 @@ const closeGame = () => {
 
 console.log('uistore', uiStore)
 
-// Watch for AI response during AI turn
+// watch UI message => parse AI action
 watch(
   () => uiStore.showCharacterLine,
   (newLine) => {
