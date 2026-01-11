@@ -448,6 +448,8 @@ const handleDrawCard = () => {
     return
   }
 
+  document.getElementById('sendButton')?.click()
+
   if (drawPile.value.length === 0) {
     reshuffleDeck()
   }
@@ -639,8 +641,8 @@ const aiPlay = () => {
     }, 60000) // 60 second timeout
   } else {
     // No playable cards - must draw
-    const drawMessage = `你没有可以出的牌，当前颜色是${getColorText(currentColor.value)}。你需要抽一张牌。`
-    scriptHandler.sendMessage(drawMessage)
+    // const drawMessage = `你没有可以出的牌，当前颜色是${getColorText(currentColor.value)}。你需要抽一张牌。`
+    // scriptHandler.sendMessage(drawMessage)
 
     setTimeout(() => {
       executeAIDraw()

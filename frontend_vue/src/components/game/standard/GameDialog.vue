@@ -314,7 +314,7 @@ defineExpose({
 /* 对话框开关按钮样式 */
 .chatbox-toggle {
   @apply absolute bottom-2.5 left-1/2 -translate-x-1/2 w-10 h-10 flex items-center justify-center cursor-pointer rounded-full 
-   bg-white/10 border border-white/20 transition-all duration-300 ease-in-out z-114514
+   bg-white/10 border border-white/20 transition-all duration-300 ease-in-out z-3
    hover:bg-white/20 hover:scale-110 hover:-translate-x-1/2;
   backdrop-filter: blur(10px);
 }
