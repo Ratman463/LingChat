@@ -1,5 +1,6 @@
 <template>
   <div class="uno-game" v-if="isGameActive">
+
     <button @click="closeGame" class="close-btn">离开</button>
 
     <!-- AI Card Area -->
@@ -26,6 +27,7 @@
 
     <!-- Center Play Area -->
     <div class="center-area">
+      <GameDialog class="uno-game-dialog" />
       <!-- Draw Pile -->
       <div class="draw-pile" @click="handleDrawCard">
         <div class="pile-label">抽牌堆 ({{ drawPile.length }})</div>
@@ -109,11 +111,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { scriptHandler } from '@/api/websocket/handlers/script-handler'
 import { useGameStore } from '@/stores/modules/game'
 import { useUIStore } from '@/stores/modules/ui/ui'
 import { EMOTION_CONFIG, EMOTION_CONFIG_EMO } from '@/controllers/emotion/config'
+import GameDialog from '../standard/GameDialog.vue'
 
 // Card Types
 interface Card {
@@ -135,13 +138,12 @@ const showColorPicker = ref(false)
 const gameMessage = ref('')
 const isPlayerTurn = ref(true)
 const pendingWildCard = ref<Card | null>(null)
-
-// hook
-const gameStore = useGameStore()
-const uiStore = useUIStore()
 const avatarImageUrl = ref('')
 const waitingForAIResponse = ref(false)
 const aiPlayableCards = ref<Array<{ card: Card; index: number }>>([])
+
+const gameStore = useGameStore()
+const uiStore = useUIStore()
 
 // Get avatar URL
 const updateAvatarImage = () => {
@@ -171,20 +173,6 @@ watch(
     updateAvatarImage()
   },
   { immediate: true },
-)
-
-console.log("uistore", uiStore);
-
-// Watch for AI response during AI turn
-watch(
-  () => uiStore.showCharacterLine,
-  (newLine) => {
-    console.log('ai reply:', newLine)
-    if (waitingForAIResponse.value && newLine && newLine.trim()) {
-      console.log('收到AI响应:', newLine)
-      parseAIResponse(newLine)
-    }
-  },
 )
 
 // Initialize deck
@@ -311,6 +299,7 @@ const startGame = () => {
     2.出牌：跟上家的牌，颜色、数字或功能一致即可；无牌可出或不想出，需摸牌，可立即打出，也可结束回合。
     3.赢家：最先打完所有牌的玩家贏。
     UNO游戏开始!你有${aiHand.value.length}张牌。当前弃牌堆顶牌是：${firstCard.display}（${getColorText(firstCard.color)}）。
+    游戏中的回答限制在一行文字，不要输出多余的回答。
   `
   scriptHandler.sendMessage(gameInfo)
   showMessage('游戏开始！')
@@ -662,7 +651,22 @@ const closeGame = () => {
   drawPile.value = []
   discardPile.value = []
   selectedCardIndex.value = null
+  waitingForAIResponse.value = false
 }
+
+console.log('uistore', uiStore)
+
+// Watch for AI response during AI turn
+watch(
+  () => uiStore.showCharacterLine,
+  (newLine) => {
+    console.log('ai reply:', newLine)
+    if (waitingForAIResponse.value && newLine && newLine.trim()) {
+      console.log('收到AI响应:', newLine)
+      parseAIResponse(newLine)
+    }
+  },
+)
 
 defineExpose({
   startGame,
@@ -676,7 +680,6 @@ defineExpose({
   left: 0;
   width: 100vw;
   height: 100vh;
-  /* Liquid Glass Background */
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(30px) saturate(150%);
   -webkit-backdrop-filter: blur(30px) saturate(150%);
@@ -1051,7 +1054,19 @@ defineExpose({
 }
 
 .fade-enter-from,
+.fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* UNO Game Dialog Positioning */
+.uno-game-dialog {
+  position: fixed !important;
+  left: 20px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 400px !important;
+  max-width: 90vw !important;
+  z-index: 10000 !important;
 }
 </style>
