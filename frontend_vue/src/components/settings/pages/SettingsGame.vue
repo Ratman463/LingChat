@@ -35,49 +35,31 @@ const playUNO = () => {
 </script>
 
 <style scoped>
+@reference "tailwindcss";
+
 .settings-page {
-  padding: 20px;
-  color: white;
+  @apply text-[white] p-5;
 }
-
 .settings-title {
-  font-size: 24px;
-  margin-bottom: 20px;
+  @apply text-2xl mb-5;
 }
-
 .game-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  @apply flex flex-col gap-5 grid-cols-[repeat(auto-fill,minmax(320px,1fr))];
 }
-
 .game-item {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 15px;
+  @apply flex items-center gap-[15px] p-[15px] rounded-lg;
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
 }
-
 .game-icon {
-  width: 60px;
-  height: 60px;
-  border-radius: 8px;
+  @apply w-[60px] h-[60px] rounded-lg;
 }
-
 .game-info {
-  flex: 1;
+  @apply flex-1;
 }
-
 .game-info h3 {
-  margin: 0;
-  font-size: 18px;
+  @apply text-lg m-0;
 }
-
 .game-info p {
-  margin: 5px 0 0 0;
-  color: #ccc;
+  @apply text-[#ccc] mt-[5px] mb-0 mx-0;
 }
 </style>

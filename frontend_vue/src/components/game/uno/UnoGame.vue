@@ -26,7 +26,7 @@
 
     <!-- Center Play Area -->
     <div class="center-area">
-      <GameDialog class="uno-game-dialog" />
+      <GameDialog />
       <!-- Draw Pile -->
       <div class="draw-pile" @click="handleDrawCard">
         <div class="pile-label">抽牌堆 ({{ drawPile.length }})</div>
@@ -420,9 +420,15 @@ const handleCardEffect = (card: Card, player: string) => {
       }
       break
     case 'skip':
+      if (player !== 'player') {
+        document.getElementById('sendButton')?.click()
+      }
       showMessage(`跳过${player === 'player' ? `${gameStore.character}` : '玩家'}的回合！`)
       break
     case 'stop':
+      if (player !== 'player') {
+        document.getElementById('sendButton')?.click()
+      }
       showMessage(`跳过${player === 'player' ? `${gameStore.character}` : '玩家'}的回合！`)
       break
   }
@@ -699,34 +705,21 @@ defineExpose({
 </script>
 
 <style scoped>
+@reference "tailwindcss";
+
 .uno-game {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
+  @apply fixed w-screen h-screen backdrop-blur-[30px] z-[9999] flex flex-col overflow-y-scroll overflow-x-hidden left-0 top-0;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(30px) saturate(150%);
   -webkit-backdrop-filter: blur(30px) saturate(150%);
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  overflow-y: scroll;
-  overflow-x: hidden;
 }
 
 .uno-game::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  @apply content-[''] absolute pointer-events-none animate-[liquidMove_20s_ease-in-out_infinite] inset-0;
   background:
     radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.08) 0%, transparent 30%),
     radial-gradient(circle at 90% 30%, rgba(255, 255, 255, 0.05) 0%, transparent 40%),
     radial-gradient(circle at 50% 80%, rgba(255, 255, 255, 0.06) 0%, transparent 50%);
-  pointer-events: none;
   animation: liquidMove 20s ease-in-out infinite;
 }
 
@@ -743,386 +736,164 @@ defineExpose({
 }
 
 .game-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 40px;
+  @apply flex justify-between items-center backdrop-blur-[20px] shadow-[0_4px_15px_rgba(0,0,0,0.1)] px-10 py-5 border-b-[rgba(255,255,255,0.1)] border-b border-solid;
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .game-title {
-  font-size: 32px;
-  font-weight: bold;
-  color: white;
+  @apply text-[32px] font-[bold] text-[white];
   text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
 }
-
 .close-btn {
-  position: absolute;
-  right: 0;
+  @apply absolute text-[white] w-[100px] h-10 rounded text-2xl cursor-pointer transition-all duration-[0.3s] border-2 border-solid border-[rgba(255,255,255,0.3)] right-0 hover:scale-110;
   background: rgba(255, 255, 255, 0.2);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  width: 100px;
-  height: 40px;
-  border-radius: 4px;
-  font-size: 24px;
-  cursor: pointer;
-  transition: all 0.3s;
 }
-
 .close-btn:hover {
   background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.1);
 }
 
 /* Avatar Box */
 .avatar-box {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  overflow: hidden;
-  margin-bottom: 20px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  box-shadow:
-    0 8px 25px rgba(0, 0, 0, 0.3),
-    inset 0 2px 10px rgba(255, 255, 255, 0.2);
+  @apply w-[100px] h-[100px] overflow-hidden shadow-[0_8px_25px_rgba(0,0,0,0.3),inset_0_2px_10px_rgba(255,255,255,0.2)] backdrop-blur-[10px] transition-all duration-[0.3s] ease-[ease] mb-5 rounded-[50%] border-4 border-solid border-[rgba(255,255,255,0.3)] hover:shadow-[0_12px_35px_rgba(0,0,0,0.4),inset_0_2px_10px_rgba(255,255,255,0.3)] hover:border-[rgba(255,255,255,0.5)] hover:scale-110;
   background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
 }
-
-.avatar-box:hover {
-  transform: scale(1.1);
-  border-color: rgba(255, 255, 255, 0.5);
-  box-shadow:
-    0 12px 35px rgba(0, 0, 0, 0.4),
-    inset 0 2px 10px rgba(255, 255, 255, 0.3);
-}
-
 .avatar-img {
-  width: 100%;
-  height: 100%;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  transition: transform 0.3s ease;
+  @apply w-full h-full bg-cover bg-center bg-no-repeat transition-transform duration-[0.3s] ease-[ease];
 }
-
 .avatar-box:hover .avatar-img {
-  transform: scale(1.15);
+  @apply scale-[1.15];
 }
 
 /* AI Card Area */
 .ai-card-area {
-  padding: 20px;
-  min-height: 200px;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  gap: 100px;
-  align-items: center;
+  @apply min-h-[200px] flex flex-row justify-center gap-[100px] items-center p-5;
   background: rgba(255, 255, 255, 0.02);
 }
-
 .player-info {
-  display: flex;
-  gap: 20px;
-  margin-bottom: 15px;
-  color: white;
-  font-size: 18px;
-  align-items: center;
+  @apply flex gap-5 text-[white] text-lg items-center mb-[15px];
 }
-
 .player-name {
-  font-weight: bold;
+  @apply font-[bold];
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
 }
-
 .card-count,
 .player-count {
-  color: #ffd700;
+  @apply text-[#ffd700];
 }
-
 .ai-cards {
-  display: flex;
-  position: relative;
-  height: 150px;
+  @apply flex relative h-[150px];
 }
-
 /* Center Area */
 .center-area {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 60px;
-  padding: 40px;
+  @apply flex-1 flex justify-center items-center gap-[60px] p-10;
 }
-
 .draw-pile,
 .discard-pile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 15px;
+  @apply flex flex-col items-center gap-[15px];
 }
-
 .pile-label {
-  color: white;
-  font-size: 18px;
-  font-weight: bold;
+  @apply text-[white] text-lg font-[bold];
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
 }
-
 .card-stack {
-  width: 120px;
-  height: 180px;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  transition: transform 0.3s;
-  cursor: pointer;
+  @apply w-[120px] h-[180px] shadow-[0_10px_30px_rgba(0,0,0,0.5)] transition-transform duration-[0.3s] cursor-pointer rounded-xl;
 }
-
 .draw-pile .card-stack:hover {
-  transform: translateY(-10px) scale(1.05);
+  @apply -translate-y-2.5 scale-105;
 }
-
 .card-stack img {
-  width: 100%;
-  height: 100%;
-  border-radius: 12px;
+  @apply w-full h-full rounded-xl;
 }
-
 .game-status {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
+  @apply flex flex-col items-center gap-2.5 border shadow-[0_8px_32px_rgba(0,0,0,0.2),inset_0_1px_2px_rgba(255,255,255,0.1)] px-[30px] py-5 rounded-[20px] border-solid border-[rgba(255,255,255,0.15)];
   background: rgba(255, 255, 255, 0.08);
-  padding: 20px 30px;
-  border-radius: 20px;
   backdrop-filter: saturate(180%);
   -webkit-backdrop-filter: saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.2),
-    inset 0 1px 2px rgba(255, 255, 255, 0.1);
 }
-
 .current-turn {
-  color: white;
-  font-size: 24px;
-  font-weight: bold;
+  @apply text-[white] text-2xl font-[bold];
   text-shadow: 0 0 15px rgba(255, 255, 255, 0.7);
 }
-
 .current-color {
-  font-size: 20px;
-  font-weight: bold;
+  @apply text-xl font-[bold];
   text-shadow: 0 0 10px currentColor;
 }
-
 /* Player Card Area */
 .player-card-area {
-  padding: 20px;
-  min-height: 250px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  @apply min-h-[250px] flex flex-col items-center backdrop-blur-[15px] shadow-[0_-4px_15px_rgba(0,0,0,0.1)] p-5 border-t-[rgba(255,255,255,0.1)] border-t border-solid;
   background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(15px) saturate(150%);
+  backdrop-filter: saturate(150%);
   -webkit-backdrop-filter: blur(15px) saturate(150%);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.1);
 }
-
 .player-cards {
-  display: flex;
-  position: relative;
-  height: 180px;
-  margin-bottom: 20px;
+  @apply flex relative h-[180px] mb-5;
 }
-
 .card {
-  position: absolute;
-  width: 100px;
-  height: 150px;
-  border-radius: 10px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-  transition: all 0.3s ease;
-  cursor: pointer;
-  z-index: 1;
+  @apply absolute w-[100px] h-[150px] shadow-[0_5px_15px_rgba(0,0,0,0.3)] transition-all duration-[0.3s] ease-[ease] cursor-pointer z-[1] rounded-[10px];
 }
-
 .card img {
-  width: 100%;
-  height: 100%;
-  border-radius: 10px;
-  pointer-events: none;
+  @apply w-full h-full pointer-events-none rounded-[10px];
 }
-
 .card.playable {
-  cursor: pointer;
+  @apply cursor-pointer hover:-translate-y-5 hover:shadow-[0_15px_40px_rgba(255,255,255,0.4)] hover:z-[100];
 }
-
-.card.playable:hover {
-  transform: translateY(-20px);
-  box-shadow: 0 15px 40px rgba(255, 255, 255, 0.4);
-  z-index: 100 !important;
-}
-
 .card.selected {
-  transform: translateY(-20px);
-  box-shadow: 0 0 40px rgba(255, 215, 0, 0.8);
-  z-index: 101 !important;
+  @apply -translate-y-5 shadow-[0_0_40px_rgba(255,215,0,0.8)] z-[101];
 }
-
 .card-back {
-  cursor: default;
+  @apply cursor-default;
 }
-
 .play-card-btn {
+  @apply text-[white] text-xl font-[bold] cursor-pointer shadow-[0_5px_15px_rgba(0,0,0,0.3)] transition-all duration-[0.3s] px-10 py-[15px] rounded-[25px] border-[none] hover:translate-y-[-3px] hover:shadow-[0_8px_20px_rgba(0,0,0,0.4)];
   background: linear-gradient(135deg, #8998d8 0%, #f5f6ff 100%);
-  color: white;
-  border: none;
-  padding: 15px 40px;
-  font-size: 20px;
-  font-weight: bold;
-  border-radius: 25px;
-  cursor: pointer;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-  transition: all 0.3s;
-}
-
-.play-card-btn:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
 }
 
 /* Color Picker Modal */
 .color-picker-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  @apply fixed w-full h-full flex justify-center items-center z-[10000] backdrop-blur-[5px] left-0 top-0;
   background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 10000;
-  backdrop-filter: blur(5px);
 }
-
 .color-picker-content {
+  @apply shadow-[0_10px_50px_rgba(0,0,0,0.5)] p-10 rounded-[20px];
   background: white;
-  padding: 40px;
-  border-radius: 20px;
-  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
 }
-
 .color-picker-content h3 {
-  margin: 0 0 30px 0;
-  font-size: 28px;
-  text-align: center;
-  color: #333;
+  @apply text-[28px] text-center text-[#333] mt-0 mb-[30px] mx-0;
 }
-
 .color-options {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+  @apply grid grid-cols-[repeat(2,1fr)] gap-5;
 }
-
 .color-option {
-  padding: 30px;
-  border-radius: 15px;
-  font-size: 20px;
-  font-weight: bold;
-  text-align: center;
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-}
-
-.color-option:hover {
-  transform: scale(1.1);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+  @apply text-xl font-[bold] text-center text-[white] cursor-pointer transition-all duration-[0.3s] shadow-[0_5px_15px_rgba(0,0,0,0.3)] p-[30px] rounded-[15px] hover:shadow-[0_8px_25px_rgba(0,0,0,0.4)] hover:scale-110;
 }
 
 /* Game Message */
 .game-message {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  @apply fixed -translate-x-2/4 -translate-y-2/4 text-[white] text-2xl font-[bold] z-[10001] backdrop-blur-[10px] shadow-[0_10px_40px_rgba(0,0,0,0.5)] px-[50px] py-[30px] rounded-[15px] left-2/4 top-2/4;
   background: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 30px 50px;
-  border-radius: 15px;
-  font-size: 24px;
-  font-weight: bold;
-  z-index: 10001;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
 }
-
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s;
+  @apply transition-opacity duration-[0.3s];
 }
-
 .fade-enter-from,
 .fade-enter-from,
 .fade-leave-to {
-  opacity: 0;
-}
-
-/* UNO Game Dialog Positioning */
-.uno-game-dialog {
-  position: fixed !important;
-  left: 20px !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-  width: 400px !important;
-  max-width: 90vw !important;
-  z-index: 10000 !important;
+  @apply opacity-0;
 }
 
 /* Loading Overlay */
 .loading-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  @apply fixed w-full h-full flex justify-center items-center z-[10002] backdrop-blur-[5px] left-0 top-0;
   background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 10002;
-  backdrop-filter: blur(5px);
 }
-
 .loading-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
+  @apply flex flex-col items-center gap-5;
 }
-
 .loading-spinner {
-  width: 60px;
-  height: 60px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top: 4px solid #fff;
-  border-radius: 50%;
+  @apply w-[60px] h-[60px] rounded-[50%] border-t-white border-4 border-solid border-[rgba(255,255,255,0.3)];
   animation: spin 1s linear infinite;
 }
 
@@ -1136,9 +907,7 @@ defineExpose({
 }
 
 .loading-text {
-  color: white;
-  font-size: 24px;
-  font-weight: bold;
+  @apply text-[white] text-2xl font-[bold];
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
 }
 </style>
