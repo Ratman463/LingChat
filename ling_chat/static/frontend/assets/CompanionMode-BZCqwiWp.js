@@ -1,0 +1,1 @@
+import{_ as a,a as o}from"./SettingsPanel.vue_vue_type_style_index_0_lang-D4tyu670.js";import{d as n,c as t,f as e,F as r,h as s}from"./index-otZiEWKI.js";import"./StarField-CEaL-wkO.js";const l=n({__name:"CompanionMode",setup(m){return(_,c)=>(s(),t(r,null,[e(a),e(o)],64))}});export{l as default};
